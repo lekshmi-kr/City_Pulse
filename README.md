@@ -3,7 +3,16 @@
 > **A real-time city intelligence and flood risk management platform for Trivandrum (Thiruvananthapuram), Kerala.**
 > Built as a Digital Twin competition submission, coexisting simulated scenarios with live APIs and hardware edge sensors.
 
----
+
+
+![TypeScript](https://img.shields.io/badge/TypeScript-Frontend-blue)
+![React](https://img.shields.io/badge/React-Framework-61DAFB)
+![Leaflet](https://img.shields.io/badge/Leaflet-Maps-green)
+![Supabase](https://img.shields.io/badge/Supabase-Database-3ECF8E)
+![Python](https://img.shields.io/badge/Python-ML-3776AB)
+![Random Forest](https://img.shields.io/badge/Random%20Forest-ML-orange)
+![ESP32](https://img.shields.io/badge/ESP32-IoT-red)
+![REST API](https://img.shields.io/badge/REST%20API-Live%20Data-purple)
 
 ## 📋 Overview
 
