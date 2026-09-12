@@ -59,7 +59,6 @@ The project is designed to demonstrate how multiple urban data sources can be br
   * Amayizhanchan Canal
   * Kannammoola Drain
 * Citizen-reported incidents can be displayed as map markers.
-  <img width="1633" height="617" alt="Screenshot 2026-09-11 212418" src="https://github.com/user-attachments/assets/d7bfb3dd-8281-4bfd-9289-93fa2ed41dde" />
 
 
 ### 🤖 ML Risk Prediction
@@ -510,6 +509,15 @@ When the hardware is unavailable, the application can use simulated telemetry.
 | PWA                 | vite-plugin-pwa       |
 
 ---
+<img width="1868" height="706" alt="Screenshot 2026-09-11 212047" src="https://github.com/user-attachments/assets/5dedc96f-653f-46b8-8bad-b9bcc1a7aecb" />
+<img width="1612" height="620" alt="Screenshot 2026-09-11 212403" src="https://github.com/user-attachments/assets/9600ef74-c4b9-4dc0-95fe-1882fc32eb0f" />
+<img width="1633" height="617" alt="Screenshot 2026-09-11 212418" src="https://github.com/user-attachments/assets/9fbe109c-7638-4d8e-bdf8-5c9261929ec9" />
+<img width="1681" height="532" alt="Screenshot 2026-09-11 212430" src="https://github.com/user-attachments/assets/eca8ab0f-870f-4ced-98c5-0a2520c0e810" />
+<img width="1613" height="566" alt="Screenshot 2026-09-11 212501" src="https://github.com/user-attachments/assets/853a04de-3ccc-48d9-8d83-aebc40e6ea69" />
+<img width="1812" height="780" alt="Screenshot 2026-09-11 212515" src="https://github.com/user-attachments/assets/dcd727dd-a509-4665-b481-0d4eca98647a" />
+<img width="1642" height="507" alt="Screenshot 2026-09-11 212529" src="https://github.com/user-attachments/assets/774f232e-bd90-4e5d-99fc-c0aacf11bb2e" />
+<img width="662" height="656" alt="Screenshot 2026-09-11 212537" src="https://github.com/user-attachments/assets/fc2cbda0-c89c-4f06-814c-fec5087a41cc" />
+
 
 ## 📜 License
 
