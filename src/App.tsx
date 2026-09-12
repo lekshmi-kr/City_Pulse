@@ -20,6 +20,7 @@ import { predictCityRisk } from '@/lib/mlRiskModel';
 import { FloodRiskProvider, useFloodRisk } from '@/context/FloodRiskContext';
 import { LanguageProvider, useLanguage } from '@/context/LanguageContext';
 import { ViewModeProvider, useViewMode } from '@/context/ViewModeContext';
+import type { SmsStatus } from '@/components/AdvisoryPanel';
 import {
   Activity,
   MapPin,
@@ -75,6 +76,8 @@ interface DashboardContentProps {
   handleToggleMode: () => void;
   displayIotState: IotSensorState;
   liveError: string | null;
+  irSmsStatus: SmsStatus;
+  inactivitySmsStatus: SmsStatus;
 }
 
 function DashboardContent({
@@ -93,6 +96,8 @@ function DashboardContent({
   handleToggleMode,
   displayIotState,
   liveError,
+  irSmsStatus,
+  inactivitySmsStatus,
 }: DashboardContentProps) {
   const { language, toggleLanguage, t } = useLanguage();
   const { viewMode, toggleViewMode } = useViewMode();
@@ -245,11 +250,10 @@ function DashboardContent({
               {/* Guided Demo Button */}
               <button
                 onClick={isDemoActive ? stopDemo : startDemo}
-                className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition-all ${
-                  isDemoActive
+                className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition-all ${isDemoActive
                     ? 'border-red-500/50 bg-red-500/20 text-red-300 ring-2 ring-red-500/40'
                     : 'border-sky-500/40 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25'
-                }`}
+                  }`}
               >
                 <Sparkles className="h-4 w-4" />
                 {isDemoActive ? t('exitDemo') : t('demoMode')}
@@ -400,7 +404,12 @@ function DashboardContent({
 
         {/* Advisories + Scenario Simulator */}
         <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <AdvisoryPanel advisories={combinedAdvisories} smsSent={smsSent} />
+          <AdvisoryPanel
+            advisories={combinedAdvisories}
+            smsSent={smsSent}
+            irSmsStatus={irSmsStatus}
+            inactivitySmsStatus={inactivitySmsStatus}
+          />
           <ScenarioSimulator
             scenarios={scenarioList}
             activeId={activeScenario}
@@ -452,6 +461,38 @@ function MainDashboard() {
 
   const { iotState, setIotState, error: liveError } = useTelemetry({ liveMode, onError: handleTelemetryError });
   const { weatherData } = useWeather();
+
+  // ── IR Detection SMS Alert ─────────────────────────────────────────────────
+  // Sends one SMS per detection event (false→true transition). Cooldown prevents
+  // repeated SMS during sustained detection. Resets when IR goes clear.
+  const [irSmsStatus, setIrSmsStatus] = useState<SmsStatus>('idle');
+  const prevIrDetectedRef = useRef(false);
+  const irSmsCooldownRef = useRef(false);
+  const irSmsCooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Inactivity SMS Alert ───────────────────────────────────────────────────
+  // Sends one SMS when no IR activity is detected for INACTIVITY_THRESHOLD_MS.
+  // Does not repeat until IR activity resumes and resets the state.
+  const INACTIVITY_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes (configurable)
+  const [inactivitySmsStatus, setInactivitySmsStatus] = useState<SmsStatus>('idle');
+  const lastIrActivityTimeRef = useRef<number>(Date.now());
+  const inactivityAlertSentRef = useRef(false);
+
+  // Helper: send SMS via the existing backend server
+  const sendSms = useCallback(async (message: string): Promise<'sent' | 'failed'> => {
+    try {
+      const res = await fetch('http://localhost:3001/api/send-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message }),
+      });
+      const data = await res.json();
+      return data && data.success ? 'sent' : 'failed';
+    } catch {
+      return 'failed';
+    }
+  }, []);
+
 
   const handleScenarioChange = useCallback(
     (id: string) => {
@@ -521,32 +562,13 @@ function MainDashboard() {
   }, [activeScenario, setIotState]);
 
   // In live mode: merge scenario simulation with real hardware data.
-  // Hardware sensor readings (temp, humidity, PIR) take priority when non-null;
+  // Hardware sensor readings (temp, humidity, IR sensor) take priority when non-null;
   // scenario still drives the map, advisories, ML risk, and other metrics.
   // temperature and humidity are explicitly resolved so that a null from
   // defaultIotState never overwrites the scenario's simulated values.
   const displayIotState: IotSensorState = liveMode
     ? {
-        ...{
-          connected: false,
-          pirDetected: scenario.iot.pirDetected,
-          temperature: scenario.iot.temperature,
-          humidity: scenario.iot.humidity,
-          lcdText: scenario.iot.lcdText,
-          ledState: scenario.iot.ledState,
-          buzzerActive: scenario.iot.buzzerActive,
-          nodeId: 'esp32-node-01',
-          lastUpdated: null,
-        },
-        // Hardware overrides scenario defaults for actual sensor readings
-        ...iotState,
-        // Fall back to scenario values when hardware hasn't sent DHT11 data yet
-        temperature: iotState.temperature !== null ? iotState.temperature : scenario.iot.temperature,
-        humidity: iotState.humidity !== null ? iotState.humidity : scenario.iot.humidity,
-        // Always reflect connection status from hardware
-        connected: iotState.connected,
-      }
-    : (throttledSimState ?? {
+      ...{
         connected: false,
         pirDetected: scenario.iot.pirDetected,
         temperature: scenario.iot.temperature,
@@ -556,10 +578,101 @@ function MainDashboard() {
         buzzerActive: scenario.iot.buzzerActive,
         nodeId: 'esp32-node-01',
         lastUpdated: null,
-      });
+      },
+      // Hardware overrides scenario defaults for actual sensor readings
+      ...iotState,
+      // Fall back to scenario values when hardware hasn't sent DHT11 data yet
+      temperature: iotState.temperature !== null ? iotState.temperature : scenario.iot.temperature,
+      humidity: iotState.humidity !== null ? iotState.humidity : scenario.iot.humidity,
+      // Always reflect connection status from hardware
+      connected: iotState.connected,
+    }
+    : (throttledSimState ?? {
+      connected: false,
+      pirDetected: scenario.iot.pirDetected,
+      temperature: scenario.iot.temperature,
+      humidity: scenario.iot.humidity,
+      lcdText: scenario.iot.lcdText,
+      ledState: scenario.iot.ledState,
+      buzzerActive: scenario.iot.buzzerActive,
+      nodeId: 'esp32-node-01',
+      lastUpdated: null,
+    });
 
   const activeZone = selectedZone ?? scenario.zones[0];
   const isLowLying = activeZone?.isLowLying ?? true;
+
+  // ── IR Detection SMS Alert effect ──────────────────────────────────────────
+  // Must be after displayIotState is declared so the closure captures the
+  // fully-merged state (live hardware + scenario fallback).
+  useEffect(() => {
+    const currentIr = displayIotState.pirDetected;
+    const prevIr = prevIrDetectedRef.current;
+
+    if (currentIr && !prevIr && !irSmsCooldownRef.current) {
+      // Transition false → true: send detection SMS
+      irSmsCooldownRef.current = true;
+      const zone = selectedZone ?? (SCENARIOS[activeScenario]?.zones[0] ?? null);
+      const zoneName = zone?.name ?? 'monitored area';
+      const tempStr = displayIotState.temperature !== null ? `${displayIotState.temperature}` : 'N/A';
+      const msg = `UrbanTwin Alert: Object detected in ${zoneName}. Risk level: Elevated. Temperature: ${tempStr}\u00b0C.`;
+      sendSms(msg).then((status) => {
+        setIrSmsStatus(status);
+      });
+      // 5-minute cooldown before another IR detection SMS can be sent
+      if (irSmsCooldownTimerRef.current) clearTimeout(irSmsCooldownTimerRef.current);
+      irSmsCooldownTimerRef.current = setTimeout(() => {
+        irSmsCooldownRef.current = false;
+        irSmsCooldownTimerRef.current = null;
+      }, 5 * 60 * 1000);
+    }
+
+    if (currentIr) {
+      // IR is active — update last activity time and reset inactivity state
+      lastIrActivityTimeRef.current = Date.now();
+      if (inactivityAlertSentRef.current) {
+        inactivityAlertSentRef.current = false;
+        setInactivitySmsStatus('idle');
+      }
+    }
+
+    if (!currentIr && prevIr) {
+      // Transition true → false: clear the IR SMS status badge
+      setIrSmsStatus('idle');
+      // Cooldown timer keeps running to prevent rapid-oscillation spam
+    }
+
+    prevIrDetectedRef.current = currentIr;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displayIotState.pirDetected, displayIotState.temperature, activeScenario, selectedZone]);
+
+  // ── Inactivity check — runs every 60 seconds ───────────────────────────────
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (inactivityAlertSentRef.current) return; // already sent, wait for reset
+      const elapsed = Date.now() - lastIrActivityTimeRef.current;
+      if (elapsed >= INACTIVITY_THRESHOLD_MS) {
+        inactivityAlertSentRef.current = true;
+        const zone = selectedZone ?? (SCENARIOS[activeScenario]?.zones[0] ?? null);
+        const zoneName = zone?.name ?? 'monitored area';
+        const minutes = Math.round(elapsed / 60000);
+        const msg = `UrbanTwin Alert: No IR activity detected in ${zoneName} for ${minutes} minute${minutes !== 1 ? 's' : ''}. Please check the monitored area.`;
+        sendSms(msg).then((status) => {
+          setInactivitySmsStatus(status);
+        });
+      }
+    }, 60 * 1000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeScenario, selectedZone, INACTIVITY_THRESHOLD_MS]);
+
+  // Cleanup IR cooldown timer on unmount
+  useEffect(() => {
+    return () => {
+      if (irSmsCooldownTimerRef.current) clearTimeout(irSmsCooldownTimerRef.current);
+    };
+  }, []);
+
 
   // Signal Fusion: count citizen waterlogging reports for active zone
   const citizenWaterloggingCount = useMemo(
@@ -607,6 +720,8 @@ function MainDashboard() {
         handleToggleMode={handleToggleMode}
         displayIotState={displayIotState}
         liveError={liveError}
+        irSmsStatus={irSmsStatus}
+        inactivitySmsStatus={inactivitySmsStatus}
       />
     </FloodRiskProvider>
   );

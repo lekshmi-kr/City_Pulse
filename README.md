@@ -136,12 +136,24 @@ Risk information is reflected through dashboard indicators, alerts, and IoT stat
   * Flood Score
 * Uses trend analysis to estimate potential movement toward flood-risk thresholds.
 
-### 🚨 SMS Alerts
+### 🚨 SMS Alerts via Twilio
 
-* Express.js backend exposes `/api/send-sms`.
-* Uses **Twilio** for real SMS delivery when configured.
-* Can trigger a critical SMS when flood risk transitions from a non-HIGH state to HIGH.
-* When Twilio credentials are unavailable, alert delivery is simulated/logged instead of sending a real SMS.
+* Express.js backend (`server.js`) exposes `/api/send-sms` and `/api/twilio-status`.
+* Uses **Twilio** for real SMS delivery when configured with environment variables.
+* Three alert types are supported:
+
+  1. **Flood Risk Alert** — triggered when flood risk transitions to HIGH.
+  2. **IR Detection Alert** — triggered when the IR sensor detects an object (false → true transition). Includes zone name, risk level, and temperature. A 5-minute cooldown prevents repeated SMS during sustained detection.
+  3. **IR Inactivity Alert** — triggered when no IR activity is detected for a configurable period (default: 5 minutes). Sends once per inactivity period; resets when IR activity resumes.
+
+* SMS status is shown in the Alerts panel:
+  * ✅ `IR Object Detected · SMS Sent`
+  * ❌ `IR Object Detected · SMS Failed`
+  * ✅ `Inactivity Alert · SMS Sent`
+  * ❌ `Inactivity Alert · SMS Failed`
+
+* When Twilio credentials are unavailable, alerts are **gracefully simulated** — the dashboard continues to function normally.
+* Twilio credentials are **strictly server-side** — never exposed to the browser.
 
 ### 👁️ Dual View Modes
 
@@ -315,11 +327,12 @@ Create a `.env` file in the project root:
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
 
-# Twilio — required only for real SMS alerts
+# Twilio — required only for real SMS alerts (server-side only, never in the browser)
 TWILIO_ACCOUNT_SID=your-account-sid
 TWILIO_AUTH_TOKEN=your-auth-token
 TWILIO_PHONE_NUMBER=your-twilio-number
-TO_PHONE_NUMBER=your-recipient-number
+ALERT_RECIPIENT_PHONE=your-recipient-number   # preferred
+# TO_PHONE_NUMBER=your-recipient-number        # legacy fallback
 ```
 
 > **Simulated Mode:** If Supabase credentials are not configured, the dashboard can operate using simulated sensor values.
@@ -453,15 +466,13 @@ The project supports an ESP32 edge node that sends telemetry to a Supabase `iot_
 
 ```sql
 id             uuid PRIMARY KEY
-ir_detected    boolean
+pir_detected   boolean      -- IR obstacle sensor (field name kept for ESP32 firmware compatibility)
 temp           numeric
 humidity       numeric
-lcd_text       text
-led_state      text   -- 'green' | 'red'
-buzzer_active  boolean
-node_id        text   -- 'esp32-node-01'
 created_at     timestamptz
 ```
+
+> **Note:** The column is named `pir_detected` for backwards compatibility with existing ESP32 firmware. The dashboard displays this as **"IR Sensor"** with **"Object Detected" / "No Object"** states — the term "PIR" does not appear anywhere in the user interface.
 
 The dashboard subscribes to telemetry `INSERT` events using **Supabase Realtime**.
 
