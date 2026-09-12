@@ -1,3 +1,5 @@
+
+
 # 🌆 Trivandrum City Pulse — Digital Twin Dashboard
 
 > *A smart-city digital twin dashboard for urban monitoring, scenario simulation, flood-risk prediction, and IoT-enabled decision support for Thiruvananthapuram, Kerala.*
@@ -11,37 +13,35 @@
 ![ESP32](https://img.shields.io/badge/ESP32-IoT-red)
 ![REST API](https://img.shields.io/badge/REST%20API-Live%20Data-purple)
 
-
-
-
 ---
 
 ## 📋 Table of Contents
 
 * [Overview](#-overview)
 * [Features](#-features)
+* [Data Sources and Operating Modes](#-data-sources-and-operating-modes)
 * [Project Architecture](#️-project-architecture)
 * [Getting Started](#-getting-started)
 * [City Scenarios](#-city-scenarios)
 * [ML Model Details](#-ml-model-details)
 * [IoT Hardware Setup](#-iot-hardware-setup-esp32)
 * [Tech Stack](#️-tech-stack)
-* [Contributing](#-contributing)
 * [License](#-license)
 
 ---
 
 ## 📋 Overview
 
-**Trivandrum City Pulse** is a React + TypeScript single-page web application that acts as a smart-city digital twin dashboard.
+**Trivandrum City Pulse** is a React + TypeScript web application designed as a smart-city digital twin dashboard for **Thiruvananthapuram, Kerala**.
 
-The platform combines live weather information, optional ESP32 edge telemetry through Supabase Realtime, a trained Random Forest risk model, simulated urban scenarios, citizen reports, and interactive geospatial visualization.
+The platform combines interactive geospatial visualization, live weather information, optional ESP32 telemetry, machine-learning-based flood-risk prediction, simulated urban scenarios, and citizen-generated reports.
 
-The dashboard provides separate **Citizen View** and **Control Room View** interfaces for presenting city conditions, risk information, alerts, and decision-support data.
+The system provides two interface modes:
 
-<!-- Add a screenshot or demo GIF here, e.g.: -->
+* **Citizen View** — simplified public-facing city information, risk indicators, and advisories.
+* **Control Room View** — detailed operational information, ML predictions, IoT telemetry, alerts, and city metrics.
 
-<!-- ![City Pulse Dashboard](docs/screenshot.png) -->
+The project is designed to demonstrate how multiple urban data sources can be brought together into a single digital-twin-style decision-support platform.
 
 ---
 
@@ -49,131 +49,196 @@ The dashboard provides separate **Citizen View** and **Control Room View** inter
 
 ### 🗺️ Interactive City Map
 
-* Leaflet.js map centered on Thiruvananthapuram with clickable zone markers
-* Visualization of flood-prone river basins and drainage areas, including:
+* Leaflet-based interactive map centered on Thiruvananthapuram.
+* Clickable city zones and location markers.
+* Visualization of selected flood-prone waterways and drainage areas:
 
   * Killi River
   * Karamana River
   * Parvathy Puthanar Canal
   * Amayizhanchan Canal
   * Kannammoola Drain
-* Citizen-reported incident pins displayed on the map
-* **OSRM-based route guidance** for alternative routing when high flood risk is detected in selected zones
+* Citizen-reported incidents can be displayed as map markers.
 
 ### 🤖 ML Risk Prediction
 
-* A **10-tree Random Forest classifier** trained using city scenario data
-* Serialized model data stored in `src/lib/trainedModelData.json`
-* Uses five input features:
+* Uses a **10-tree Random Forest classifier** trained with city scenario data.
+* Serialized model data is stored in `src/lib/trainedModelData.json`.
+* Uses five risk-related input features:
 
   * Precipitation rate
   * Traffic density
   * Crowd footfall
   * Sustained rainfall duration
   * Low-lying zone elevation flag
-* Produces **LOW / MEDIUM / HIGH** risk predictions
-* Displays confidence percentage, per-tree voting information, and feature importances
-* Feature importances are derived from the trained scikit-learn model
-* Integrated into the **Control Room View** through the `MLRiskCard` component
+* Produces:
+
+  * **LOW**
+  * **MEDIUM**
+  * **HIGH**
+* Displays prediction confidence, per-tree voting information, and feature importance.
+* Feature importance values are derived from the trained scikit-learn model.
+* Integrated into the Control Room View through the `MLRiskCard` component.
+
+> **Important:** ML predictions are based on the available scenario/live input values. The model does not directly measure rainfall, traffic, or elevation using the ESP32 hardware.
 
 ### 📡 IoT Hardware Integration — ESP32
 
-* Supports telemetry from a physical ESP32 edge node through **Supabase Realtime**
-* Supports PIR motion detection, temperature, humidity, LCD status, LED state, and buzzer state
-* Automatically falls back to simulated sensor values when live Supabase credentials are unavailable
-* Supports switching between **Live Mode** and **Simulated Mode**
+* Supports an ESP32 edge node connected through **Supabase Realtime**.
+* Supports:
+
+  * IR detection
+  * Temperature
+  * Humidity
+  * LCD status
+  * LED state
+  * Buzzer state
+* Supports **Live Mode** when connected to Supabase telemetry.
+* Supports **Simulated Mode** when physical hardware or live credentials are unavailable.
+
+The ESP32 provides edge telemetry for demonstration and monitoring. It does **not** directly measure city-wide traffic, rainfall, flood depth, or road conditions.
 
 ### 🌧️ Flood Risk Engine
 
-* Rule-based `FloodRiskContext` calculates flood risk using:
+The rule-based `FloodRiskContext` combines available signals including:
 
-  * Rainfall intensity
-  * Sustained rainfall duration
-  * Low-lying zone elevation
-  * Citizen waterlogging reports
-* Citizen waterlogging reports contribute to the risk signal through signal fusion
-* Risk information is reflected in dashboard alerts and IoT indicator states
+* Rainfall intensity
+* Sustained rainfall duration
+* Low-lying zone information
+* Citizen waterlogging reports
+
+Citizen reports can contribute additional evidence to the flood-risk signal.
+
+Risk information is reflected through dashboard indicators, alerts, and IoT status outputs.
 
 ### ☁️ Live Weather
 
-* Integrates the **Open-Meteo API** for live weather conditions in Thiruvananthapuram
-* No API key is required
-* Refreshes weather information periodically
+* Integrates the **Open-Meteo API** for current weather information in Thiruvananthapuram.
+* Does not require an API key.
+* Weather data is refreshed periodically.
 * Displays:
 
   * Temperature
   * Wind speed
   * Rainfall
   * Weather description
-* Weather information contributes to the dashboard's risk analysis
+
+> **Data distinction:** Weather values obtained from Open-Meteo are live external data. They are separate from ESP32 telemetry and from predefined simulation scenarios.
 
 ### 📈 Historical Trend Analysis
 
-* Maintains a rolling 20-point data buffer
-* Updates trend information every 3 seconds when enabled
+* Maintains a rolling 20-point data buffer.
+* Updates trend information periodically when enabled.
 * Visualizes:
 
   * City Health Score
   * Flood Score
-* Uses linear regression on trend data to estimate when flood-risk thresholds may be reached
+* Uses trend analysis to estimate potential movement toward flood-risk thresholds.
 
 ### 🚨 SMS Alerts
 
-* Express.js backend exposes `/api/send-sms`
-* Uses **Twilio** for SMS alert delivery
-* Automatically triggers a critical SMS alert when flood risk transitions from a non-HIGH state to HIGH
-* Falls back to simulated/logged alert dispatch when Twilio credentials are not configured
+* Express.js backend exposes `/api/send-sms`.
+* Uses **Twilio** for real SMS delivery when configured.
+* Can trigger a critical SMS when flood risk transitions from a non-HIGH state to HIGH.
+* When Twilio credentials are unavailable, alert delivery is simulated/logged instead of sending a real SMS.
 
 ### 👁️ Dual View Modes
 
 #### Citizen View
 
-Provides simplified city information, risk indicators, and public-facing advisories.
+Provides:
+
+* City condition overview
+* Risk indicators
+* Public-facing advisories
+* Citizen-oriented information
 
 #### Control Room View
 
-Provides additional operational information, including:
+Provides additional operational information:
 
 * ML Risk Card
 * IoT Sensor Panel
 * Detailed city metrics
 * Risk information
-* Alerts and system status
+* Alerts
+* System status
 
 ### 🌐 Bilingual Support
 
-* Full English and Malayalam interface support
-* Uses `LanguageContext` and `src/data/translations.ts`
-* Language can be switched at runtime
+* Supports English and Malayalam.
+* Uses `LanguageContext` and `src/data/translations.ts`.
+* Language can be changed during runtime.
 
 ### 📢 Citizen Report System
 
-* Residents can submit geolocated reports
-* Supported issue types include:
+Residents can submit geolocated reports for issues such as:
 
-  * Waterlogging
-  * Traffic congestion
-  * Other incidents
-* Citizen reports are incorporated into the live advisory feed
-* Waterlogging reports contribute to flood-risk signal fusion
+* Waterlogging
+* Traffic congestion
+* Other incidents
+
+Citizen reports can appear in the advisory feed and map and can contribute to the flood-risk signal when waterlogging is reported.
 
 ### 🎬 Guided Demo Mode
 
-* Automatically cycles through predefined city scenarios
-* Provides step-by-step visual overlays
-* Designed for presentations, demonstrations, and competition evaluation
+* Cycles through predefined city scenarios.
+* Provides step-by-step visual overlays.
+* Designed for project demonstrations, presentations, and competition evaluation.
 
-### 📴 Offline Mode
+### 📴 Offline Status
 
-* `useOfflineStatus` detects network connectivity changes
-* Displays an offline status banner
-* Shows the timestamp of the last known data when connectivity is unavailable
+* Detects network connectivity changes through `useOfflineStatus`.
+* Displays an offline status indicator.
+* Shows the last known data timestamp when connectivity is unavailable.
 
-### 📲 PWA Support
+### 📲 Progressive Web App
 
-* Configured as a Progressive Web App using `vite-plugin-pwa`
-* Supports installation on compatible mobile and desktop devices
-* Application name: **CityPulse**
+* Configured as a Progressive Web App using `vite-plugin-pwa`.
+* Supports installation on compatible desktop and mobile devices.
+* Application name: **CityPulse**.
+
+---
+
+## 🔄 Data Sources and Operating Modes
+
+The dashboard combines several types of information. Each source has a different role in the digital twin.
+
+| Data Source             | Type                  | Purpose                                                |
+| ----------------------- | --------------------- | ------------------------------------------------------ |
+| **Open-Meteo**          | Live external data    | Weather and rainfall information                       |
+| **ESP32 + IR Sensor**   | Live IoT telemetry    | Local movement/environment telemetry                   |
+| **Scenario Simulator**  | Simulated data        | Demonstrates different city conditions                 |
+| **Citizen Reports**     | User-generated data   | Reports incidents such as waterlogging and congestion  |
+| **Zone Metadata**       | Static/reference data | Zone characteristics such as low-lying areas           |
+| **Random Forest Model** | ML prediction         | Predicts LOW/MEDIUM/HIGH risk from available inputs    |
+| **Flood Risk Engine**   | Rule-based analysis   | Combines selected signals into a flood-risk assessment |
+
+### Operating Modes
+
+#### 🟢 Live Mode
+
+Uses available live data such as:
+
+* Open-Meteo weather information
+* ESP32 telemetry through Supabase Realtime
+* Citizen reports
+
+#### 🟡 Simulated Mode
+
+Used when physical IoT hardware or live telemetry is unavailable.
+
+The system generates predefined or simulated sensor/city conditions to demonstrate how the dashboard responds to different scenarios.
+
+#### 🔵 Scenario Mode
+
+Provides predefined conditions such as:
+
+* Normal Day
+* Heavy Monsoon Rain
+* Evening Rush Hour
+
+> **Note:** Simulated and scenario values are demonstration inputs. They should not be interpreted as real-time measurements of the entire city.
 
 ---
 
@@ -183,8 +248,8 @@ Provides additional operational information, including:
 project/
 ├── src/
 │   ├── components/              # Dashboard and UI components
-│   ├── hooks/                   # Weather, telemetry, routing and application hooks
-│   ├── context/                # Risk, language and view-mode state
+│   ├── hooks/                   # Weather, telemetry and application hooks
+│   ├── context/                 # Risk, language and view-mode state
 │   ├── lib/                     # ML model and Supabase integration
 │   └── data/                    # Scenarios and translations
 │
@@ -206,22 +271,21 @@ project/
 
 ### Key Application Modules
 
-| Module                     | Purpose                                                   |
-| -------------------------- | --------------------------------------------------------- |
-| `CityMap.tsx`              | Interactive map, zones, flood overlays and route guidance |
-| `IoTSensorPanel.tsx`       | ESP32 telemetry display                                   |
-| `MLRiskCard.tsx`           | Random Forest risk prediction display                     |
-| `MetricCardView.tsx`       | City condition metrics                                    |
-| `AdvisoryPanel.tsx`        | Alerts and SMS status                                     |
-| `ScenarioSimulator.tsx`    | Scenario selection and simulation                         |
-| `ZoneDetail.tsx`           | Zone-level information                                    |
-| `HistoricalTrendChart.tsx` | Historical risk visualization                             |
-| `CitizenReportModal.tsx`   | Citizen incident reporting                                |
-| `FloodRiskContext.tsx`     | Rule-based flood risk engine                              |
-| `useTelemetry.ts`          | Supabase Realtime telemetry subscription                  |
-| `useWeather.ts`            | Open-Meteo weather integration                            |
-| `useFloodForecast.ts`      | Flood trend forecasting                                   |
-| `useRouteGuidance.ts`      | OSRM route guidance                                       |
+| Module                     | Purpose                                  |
+| -------------------------- | ---------------------------------------- |
+| `CityMap.tsx`              | Interactive city map and flood overlays  |
+| `IoTSensorPanel.tsx`       | ESP32 telemetry display                  |
+| `MLRiskCard.tsx`           | Random Forest risk prediction display    |
+| `MetricCardView.tsx`       | City condition metrics                   |
+| `AdvisoryPanel.tsx`        | Alerts and SMS status                    |
+| `ScenarioSimulator.tsx`    | Scenario selection and simulation        |
+| `ZoneDetail.tsx`           | Zone-level information                   |
+| `HistoricalTrendChart.tsx` | Historical risk visualization            |
+| `CitizenReportModal.tsx`   | Citizen incident reporting               |
+| `FloodRiskContext.tsx`     | Rule-based flood-risk engine             |
+| `useTelemetry.ts`          | Supabase Realtime telemetry subscription |
+| `useWeather.ts`            | Open-Meteo weather integration           |
+| `useFloodForecast.ts`      | Flood trend forecasting                  |
 
 ---
 
@@ -257,9 +321,9 @@ TWILIO_PHONE_NUMBER=your-twilio-number
 TO_PHONE_NUMBER=your-recipient-number
 ```
 
-> **Simulated Mode:** If Supabase credentials are not configured, the dashboard can run using simulated sensor values.
->
-> **SMS Simulation:** If Twilio credentials are not configured, SMS alerts are simulated/logged rather than sent.
+> **Simulated Mode:** If Supabase credentials are not configured, the dashboard can operate using simulated sensor values.
+
+> **SMS Simulation:** If Twilio credentials are not configured, SMS alerts are logged/simulated instead of being sent through Twilio.
 
 ### Running the Application
 
@@ -283,28 +347,33 @@ In a separate terminal:
 node server.js
 ```
 
-The Express.js backend runs at:
+The Express backend runs at:
 
 ```text
 http://localhost:3001
 ```
 
-Both servers should be running for complete SMS alert functionality.
+Both servers are required for complete SMS alert functionality.
 
-### Other Scripts
+### Available Scripts
 
 ```bash
-npm run build       # Create production build
-npm run preview     # Preview production build
-npm run lint        # Run ESLint
-npm run typecheck   # Run TypeScript type checking
+npm run dev        # Start the development server
+npm run build      # Create a production build
+npm run preview    # Preview the production build
+npm run lint       # Run ESLint
+npm run typecheck  # Run TypeScript type checking
 ```
 
 ---
 
 ## 🌍 City Scenarios
 
-The dashboard includes three predefined city scenarios stored in `src/data/scenarios.ts`.
+The dashboard includes three predefined scenarios stored in:
+
+```text
+src/data/scenarios.ts
+```
 
 | Scenario               | Health Score | Description                                       |
 | ---------------------- | -----------: | ------------------------------------------------- |
@@ -312,68 +381,78 @@ The dashboard includes three predefined city scenarios stored in `src/data/scena
 | **Heavy Monsoon Rain** |       48/100 | Sustained heavy rainfall and increased flood risk |
 | **Evening Rush Hour**  |       62/100 | Increased traffic and pedestrian activity         |
 
-Each scenario configures city conditions such as:
+Each scenario can configure demonstration inputs such as:
 
 * Crowd density
 * Traffic flow
 * Weather conditions
-* IoT sensor simulation values
+* Simulated IoT values
 * Advisory messages
 * Flood-risk parameters
 
-The monitored zones include:
+### Monitored Zones
 
 * Statue / East Fort
 * Thampanoor
 * Kowdiar
 * Palayam
 
+> Scenario values are predefined demonstration conditions and are not claimed to represent live measurements of these locations.
+
 ---
 
 ## 🧠 ML Model Details
 
-The Random Forest classifier uses **five input features**:
+The project uses a **10-tree Random Forest classifier** trained with scikit-learn.
+
+### Input Features
 
 | Feature                        | Source                       |
 | ------------------------------ | ---------------------------- |
-| Precipitation Rate (mm/hr)     | Scenario data / live weather |
-| Traffic Gridlock Density (%)   | Scenario data                |
-| Crowd Footfall Activity (%)    | Scenario data                |
+| Precipitation Rate (mm/hr)     | Live weather / scenario data |
+| Traffic Gridlock Density (%)   | Scenario or application data |
+| Crowd Footfall Activity (%)    | Scenario or application data |
 | Sustained Rain Duration (mins) | Scenario parameters          |
 | Low-Lying Zone Elevation Flag  | Zone metadata                |
 
-The model is trained using **scikit-learn** through:
+The training script is located at:
 
 ```text
 scripts/train_rf_model.py
 ```
 
-The trained model information is serialized to:
+Serialized model information is stored at:
 
 ```text
 src/lib/trainedModelData.json
 ```
 
-The dashboard uses the serialized model data for client-side inference and displays:
+The application uses the serialized model data for client-side inference.
 
-* Predicted risk level
+### Model Output
+
+The model produces:
+
+* **LOW** risk
+* **MEDIUM** risk
+* **HIGH** risk
 * Confidence percentage
 * Per-tree voting information
-* Feature importances
+* Feature importance information
 
-This provides an interpretable view of the model's risk prediction.
+> **Important:** The Random Forest model provides a prediction based on the supplied input features. It is a decision-support component and should not be interpreted as an official flood warning system.
 
 ---
 
-## 📡 IoT Hardware Setup (ESP32)
+## 📡 IoT Hardware Setup — ESP32
 
-The dashboard supports an ESP32 edge node that pushes telemetry to a Supabase `iot_telemetry` table.
+The project supports an ESP32 edge node that sends telemetry to a Supabase `iot_telemetry` table.
 
 ### Telemetry Schema
 
 ```sql
 id             uuid PRIMARY KEY
-pir_detected   boolean
+ir_detected    boolean
 temp           numeric
 humidity       numeric
 lcd_text       text
@@ -383,24 +462,28 @@ node_id        text   -- 'esp32-node-01'
 created_at     timestamptz
 ```
 
-The dashboard subscribes to `INSERT` events on the telemetry table using **Supabase Realtime**.
+The dashboard subscribes to telemetry `INSERT` events using **Supabase Realtime**.
 
-An example ESP32 firmware sketch is available at:
+Example firmware:
 
 ```text
 supabase/esp32_telemetry_example.ino
 ```
 
-The hardware integration can provide:
+### ESP32 Telemetry
 
-* PIR motion detection
+The hardware can provide:
+
+* IR detection
 * Temperature
 * Humidity
 * LCD status
 * LED status
 * Buzzer status
 
-The system can also operate in **Simulated Mode** when physical hardware is unavailable.
+The ESP32 acts as a **local edge telemetry node**. Its measurements are not treated as city-wide measurements.
+
+When the hardware is unavailable, the application can use simulated telemetry.
 
 ---
 
@@ -419,44 +502,10 @@ The system can also operate in **Simulated Mode** when physical hardware is unav
 | Machine Learning    | Python + scikit-learn |
 | ML Model            | Random Forest         |
 | Weather API         | Open-Meteo            |
-| Routing API         | OSRM Public Demo API  |
-| IoT                 | ESP32                 |
+| IoT Platform        | ESP32                 |
+| IoT Sensor          | IR Sensor             |
 | SMS Alerts          | Twilio                |
 | PWA                 | vite-plugin-pwa       |
-
----
-
-## 🤝 Contributing
-
-This project was developed as a Digital Twin competition prototype. Contributions and improvements are welcome.
-
-1. Fork the repository
-2. Create a feature branch:
-
-```bash
-git checkout -b feature/your-feature
-```
-
-3. Commit your changes:
-
-```bash
-git commit -m "Add your feature"
-```
-
-4. Push the branch:
-
-```bash
-git push origin feature/your-feature
-```
-
-5. Open a Pull Request
-
-Before submitting a Pull Request, please run:
-
-```bash
-npm run lint
-npm run typecheck
-```
 
 ---
 
@@ -464,6 +513,4 @@ npm run typecheck
 
 This project is currently not released under an open-source license.
 
-All rights reserved by the project authors.
-
----
+**All rights reserved by the project authors.**
