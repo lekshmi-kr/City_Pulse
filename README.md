@@ -59,6 +59,8 @@ The project is designed to demonstrate how multiple urban data sources can be br
   * Amayizhanchan Canal
   * Kannammoola Drain
 * Citizen-reported incidents can be displayed as map markers.
+  <img width="1633" height="617" alt="Screenshot 2026-09-11 212418" src="https://github.com/user-attachments/assets/d7bfb3dd-8281-4bfd-9289-93fa2ed41dde" />
+
 
 ### 🤖 ML Risk Prediction
 
