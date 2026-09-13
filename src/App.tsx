@@ -55,6 +55,16 @@ const healthStyles: Record<StatusLevel, { ring: string; text: string; bg: string
   },
 };
 
+interface SmsAlertState {
+  sent: boolean;
+  simulated: boolean;
+  sid: string | null;
+  timestamp: string | null;
+  retries: number;
+}
+
+const defaultSmsState: SmsAlertState = { sent: false, simulated: false, sid: null, timestamp: null, retries: 0 };
+
 interface DashboardContentProps {
   activeScenario: string;
   setActiveScenario: (id: string) => void;
@@ -74,6 +84,7 @@ interface DashboardContentProps {
   handleScenarioChange: (id: string) => void;
   handleToggleMode: () => void;
   displayIotState: IotSensorState;
+  liveError: string | null;
 }
 
 function DashboardContent({
@@ -91,6 +102,7 @@ function DashboardContent({
   handleScenarioChange,
   handleToggleMode,
   displayIotState,
+  liveError,
 }: DashboardContentProps) {
   const { language, toggleLanguage, t } = useLanguage();
   const { viewMode, toggleViewMode } = useViewMode();
@@ -105,39 +117,52 @@ function DashboardContent({
 
   const { isDemoActive, currentStep, startDemo, stopDemo } = useGuidedDemo(handleScenarioChange);
 
-  // SMS Alert dispatch on MEDIUM -> HIGH flood risk transition
-  const [smsSent, setSmsSent] = useState(false);
+  // SMS Alert dispatch on MEDIUM -> HIGH flood risk transition (with retry)
+  const [smsState, setSmsState] = useState<SmsAlertState>(defaultSmsState);
   const prevRiskRef = useRef(floodRisk.riskLevel);
+  const MAX_RETRIES = 2;
 
   useEffect(() => {
     const currentRisk = floodRisk.riskLevel;
     const prevRisk = prevRiskRef.current;
 
-    if (currentRisk === 'HIGH' && prevRisk !== 'HIGH' && !smsSent) {
-      fetch('http://localhost:3001/api/send-sms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: '+19876543210',
-          message: `[TVM CITY PULSE CRITICAL ALERT] High Flood Risk detected in Trivandrum. Water level & rainfall threshold exceeded! Take immediate precaution.`,
-        }),
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data && data.success) {
-            setSmsSent(true);
-          } else {
-            setSmsSent(false);
-          }
+    if (currentRisk === 'HIGH' && prevRisk !== 'HIGH' && !smsState.sent) {
+      const attemptSend = (attempt: number) => {
+        fetch('http://localhost:3001/api/send-sms', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recipient: '+919876543210',
+            message: `[TVM CITY PULSE CRITICAL ALERT] High Flood Risk detected in Trivandrum. Water level & rainfall threshold exceeded! Take immediate precaution.`,
+          }),
         })
-        .catch(() => {
-          setSmsSent(false);
-        });
+          .then((res) => res.json())
+          .then((data) => {
+            if (data && data.success) {
+              setSmsState({
+                sent: true,
+                simulated: data.simulated ?? true,
+                sid: data.sid ?? null,
+                timestamp: data.timestamp ?? new Date().toISOString(),
+                retries: attempt,
+              });
+            } else if (attempt < MAX_RETRIES) {
+              // Retry after 3 s on non-success response
+              setTimeout(() => attemptSend(attempt + 1), 3000);
+            }
+          })
+          .catch(() => {
+            if (attempt < MAX_RETRIES) {
+              setTimeout(() => attemptSend(attempt + 1), 3000);
+            }
+          });
+      };
+      attemptSend(0);
     } else if (currentRisk !== 'HIGH') {
-      setSmsSent(false);
+      setSmsState(defaultSmsState);
     }
     prevRiskRef.current = currentRisk;
-  }, [floodRisk.riskLevel, smsSent]);
+  }, [floodRisk.riskLevel, smsState.sent]);
 
   const activeZone = selectedZone ?? scenario.zones[0];
 
@@ -314,7 +339,7 @@ function DashboardContent({
           <section className="mb-6">
             <MLRiskCard
               prediction={cityPrediction}
-              dataSource={weatherData || (liveMode && displayIotState.connected) ? 'live' : 'simulated'}
+              dataSource={liveMode && displayIotState.connected ? 'live' : weatherData ? 'live' : 'simulated'}
             />
           </section>
         )}
@@ -357,6 +382,7 @@ function DashboardContent({
               state={displayIotState}
               liveMode={liveMode}
               onToggleMode={handleToggleMode}
+              liveError={liveError}
             />
           </section>
         )}
@@ -397,7 +423,7 @@ function DashboardContent({
 
         {/* Advisories + Scenario Simulator */}
         <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <AdvisoryPanel advisories={combinedAdvisories} smsSent={smsSent} />
+          <AdvisoryPanel advisories={combinedAdvisories} smsState={smsState} />
           <ScenarioSimulator
             scenarios={scenarioList}
             activeId={activeScenario}
@@ -410,7 +436,7 @@ function DashboardContent({
 
         {/* Footer */}
         <footer className="mt-8 border-t border-slate-800/60 pt-4 text-center text-xs text-slate-600">
-          Trivandrum City Pulse &middot; Digital Twin Competition Submission &middot; Data coexists with Live APIs &amp; Hardware Edge Sensors
+          Trivandrum City Pulse &middot; Smart City Digital Twin &middot; Real-Time Urban Intelligence &amp; Flood Risk Management
         </footer>
 
         {/* Modals & Overlays */}
@@ -447,13 +473,15 @@ function MainDashboard() {
     setLiveMode(false);
   }, []);
 
-  const { iotState, setIotState } = useTelemetry({ liveMode, onError: handleTelemetryError });
+  const { iotState, setIotState, error: liveError } = useTelemetry({ liveMode, onError: handleTelemetryError });
   const { weatherData } = useWeather();
 
   const handleScenarioChange = useCallback(
     (id: string) => {
       setActiveScenario(id);
       setSelectedZone(null);
+      // In simulation mode, update iotState with scenario defaults.
+      // In live mode, we keep the hardware data — merging happens in displayIotState.
       if (!liveMode) {
         const sc = SCENARIOS[id];
         setIotState({
@@ -493,8 +521,9 @@ function MainDashboard() {
     setLiveMode((prev) => {
       const next = !prev;
       if (!next) {
+        // Switching to Simulation mode: immediately sync both iotState and throttledSimState
         const sc = SCENARIOS[activeScenario];
-        setIotState({
+        const simState: IotSensorState = {
           connected: false,
           pirDetected: sc.iot.pirDetected,
           temperature: sc.iot.temperature,
@@ -504,7 +533,9 @@ function MainDashboard() {
           buzzerActive: sc.iot.buzzerActive,
           nodeId: 'esp32-node-01',
           lastUpdated: new Date().toISOString(),
-        });
+        };
+        setIotState(simState);
+        setThrottledSimState(simState);
       } else {
         setIotState(defaultIotState);
       }
@@ -512,8 +543,27 @@ function MainDashboard() {
     });
   }, [activeScenario, setIotState]);
 
+  // In live mode: merge scenario simulation with real hardware data.
+  // Hardware sensor readings (temp, humidity, PIR) take priority;
+  // scenario still drives the map, advisories, ML risk, and other metrics.
   const displayIotState: IotSensorState = liveMode
-    ? iotState
+    ? {
+        ...{
+          connected: false,
+          pirDetected: scenario.iot.pirDetected,
+          temperature: scenario.iot.temperature,
+          humidity: scenario.iot.humidity,
+          lcdText: scenario.iot.lcdText,
+          ledState: scenario.iot.ledState,
+          buzzerActive: scenario.iot.buzzerActive,
+          nodeId: 'esp32-node-01',
+          lastUpdated: null,
+        },
+        // Hardware overrides scenario defaults for actual sensor readings
+        ...iotState,
+        // Always reflect connection status from hardware
+        connected: iotState.connected,
+      }
     : (throttledSimState ?? {
         connected: false,
         pirDetected: scenario.iot.pirDetected,
@@ -574,6 +624,7 @@ function MainDashboard() {
         handleScenarioChange={handleScenarioChange}
         handleToggleMode={handleToggleMode}
         displayIotState={displayIotState}
+        liveError={liveError}
       />
     </FloodRiskProvider>
   );

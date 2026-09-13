@@ -1,12 +1,12 @@
 import type { IotSensorState } from '@/lib/supabase';
 import type { StatusLevel } from '@/data/scenarios';
-import { useFloodRisk } from '@/context/FloodRiskContext';
-import { Cpu, Wifi, WifiOff, Thermometer, Droplets, Footprints, Monitor, Lightbulb, Volume2, VolumeX } from 'lucide-react';
+import { Cpu, Wifi, WifiOff, Thermometer, Droplets, Footprints, Monitor, Lightbulb, Volume2, VolumeX, AlertCircle } from 'lucide-react';
 
 interface IoTSensorPanelProps {
   state: IotSensorState;
   liveMode: boolean;
   onToggleMode: () => void;
+  liveError?: string | null;
 }
 
 const levelColor: Record<StatusLevel, string> = {
@@ -21,26 +21,21 @@ const levelDot: Record<StatusLevel, string> = {
   warning: 'bg-red-500',
 };
 
-export default function IoTSensorPanel({ state, liveMode, onToggleMode }: IoTSensorPanelProps) {
-  const flood = useFloodRisk();
+export default function IoTSensorPanel({ state, liveMode, onToggleMode, liveError }: IoTSensorPanelProps) {
   const pirLevel: StatusLevel = state.pirDetected ? 'warning' : 'good';
   const tempLevel: StatusLevel = state.temperature !== null && state.temperature > 32 ? 'warning' : state.temperature !== null && state.temperature > 28 ? 'caution' : 'good';
   const humidityLevel: StatusLevel = state.humidity !== null && state.humidity > 80 ? 'warning' : state.humidity !== null && state.humidity > 60 ? 'caution' : 'good';
 
-  // Reactive LED and Buzzer status based on shared Flood Risk
-  const isHighFlood = flood.riskLevel === 'HIGH';
-  const isMedFlood = flood.riskLevel === 'MEDIUM';
+  // LED and buzzer driven directly by IoT state (hardware or simulation)
+  const isLedRed = state.ledState === 'red';
+  const isBuzzerOn = state.buzzerActive;
 
-  const ledStyle = isHighFlood
-    ? { container: 'bg-red-500/20 ring-2 ring-red-500/50', text: 'text-red-400', label: 'Red Alert (High Flood)' }
-    : isMedFlood
-    ? { container: 'bg-amber-500/20 ring-2 ring-amber-500/50', text: 'text-amber-400', label: 'Yellow (Caution)' }
+  const ledStyle = isLedRed
+    ? { container: 'bg-red-500/20 ring-2 ring-red-500/50', text: 'text-red-400', label: 'Red Alert (Motion / High Risk)' }
     : { container: 'bg-emerald-500/20 ring-2 ring-emerald-500/50', text: 'text-emerald-400', label: 'Green (Normal)' };
 
-  const buzzerStyle = isHighFlood
+  const buzzerStyle = isBuzzerOn
     ? { container: 'bg-red-500/20 ring-2 ring-red-500/50', text: 'text-red-400', icon: Volume2, label: 'Active (Alarm)' }
-    : isMedFlood
-    ? { container: 'bg-amber-500/20 ring-2 ring-amber-500/50', text: 'text-amber-400', icon: Volume2, label: 'Intermittent Beep' }
     : { container: 'bg-slate-700/40 ring-2 ring-slate-600/30', text: 'text-slate-400', icon: VolumeX, label: 'Silent' };
 
   const BuzzerIcon = buzzerStyle.icon;
@@ -84,6 +79,18 @@ export default function IoTSensorPanel({ state, liveMode, onToggleMode }: IoTSen
         </button>
       </div>
 
+      {/* Supabase connection error banner */}
+      {liveMode && liveError && (
+        <div className="mb-4 flex items-start gap-2 rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2.5 text-xs text-red-300">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
+          <div>
+            <p className="font-semibold text-red-300">Supabase connection failed</p>
+            <p className="mt-0.5 text-red-400/80">{liveError}</p>
+            <p className="mt-1 text-red-500/70">Check your <code className="rounded bg-red-500/20 px-1">VITE_SUPABASE_URL</code> and <code className="rounded bg-red-500/20 px-1">VITE_SUPABASE_ANON_KEY</code> in <code className="rounded bg-red-500/20 px-1">.env</code> and restart the dev server.</p>
+          </div>
+        </div>
+      )}
+
       {/* Node ID */}
       <div className="mb-4 flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-800/30 px-3 py-2">
         <Cpu className="h-3.5 w-3.5 text-slate-500" />
@@ -98,12 +105,12 @@ export default function IoTSensorPanel({ state, liveMode, onToggleMode }: IoTSen
 
       {/* Sensor Readouts Grid */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {/* PIR Motion Sensor */}
+        {/* IR Motion */}
         <div className="rounded-xl border border-slate-800 bg-slate-800/40 p-4">
           <div className="mb-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Footprints className="h-4 w-4 text-slate-400" />
-              <span className="text-xs font-medium text-slate-400">PIR Motion Sensor</span>
+              <span className="text-xs font-medium text-slate-400">IR Motion</span>
             </div>
             <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-semibold ${
               pirLevel === 'good' ? 'border-emerald-500/30 bg-emerald-500/15 text-emerald-400' : 'border-red-500/30 bg-red-500/15 text-red-400'
