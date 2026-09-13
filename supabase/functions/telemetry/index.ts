@@ -36,19 +36,15 @@ Deno.serve(async (req: Request) => {
     const node_id =
       typeof body.node_id === "string" ? body.node_id : "esp32-node-01";
 
-    // Derive LED and buzzer state from sensor data
-    // If PIR detects motion + high humidity → red LED + buzzer alert
-    const isAlert = pir_detected && (humidity !== null ? humidity > 80 : false);
-    const led_state = isAlert ? "red" : "green";
-    const buzzer_active = isAlert;
+    // Derive LED and buzzer state directly from PIR state.
+    // LED ON and buzzer ON whenever PIR detects motion.
+    const led_state = pir_detected ? "red" : "green";
+    const buzzer_active = pir_detected;
 
-    // Derive LCD text from current conditions
-    let lcd_text = "Showing: City Health Score";
-    if (isAlert) {
-      lcd_text = "ALERT: High crowd + humidity";
-    } else if (pir_detected) {
-      lcd_text = "Crowd activity detected";
-    }
+    // Derive LCD text from PIR state
+    const lcd_text = pir_detected
+      ? "MOTION DETECTED"
+      : "Status: Normal";
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
