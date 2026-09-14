@@ -75,6 +75,7 @@ export interface IotSimulation {
   pirDetected: boolean;
   temperature: number;
   humidity: number;
+  distance?: number | null;   // cm from ultrasonic; null in simulation
   lcdText: string;
   ledState: 'green' | 'red';
   buzzerActive: boolean;

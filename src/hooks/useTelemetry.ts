@@ -49,7 +49,7 @@ export function useTelemetry({ liveMode, onError }: UseTelemetryOptions) {
 
     try {
       const { data, error: fetchError } = await supabase
-        .from('telemetry')
+        .from('iot_telemetry')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(1)
@@ -129,7 +129,7 @@ export function useTelemetry({ liveMode, onError }: UseTelemetryOptions) {
       .channel('iot-telemetry-realtime')
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'telemetry' },
+        { event: 'INSERT', schema: 'public', table: 'iot_telemetry' },
         (payload) => {
           // A new row arrived — update state immediately, clear any error
           setError(null);

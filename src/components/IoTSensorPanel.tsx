@@ -1,6 +1,6 @@
 import type { IotSensorState } from '@/lib/supabase';
 import type { StatusLevel } from '@/data/scenarios';
-import { Cpu, Wifi, WifiOff, Thermometer, Droplets, Footprints, Monitor, Lightbulb, Volume2, VolumeX, AlertCircle } from 'lucide-react';
+import { Cpu, Wifi, WifiOff, Thermometer, Droplets, Scan, Monitor, Lightbulb, Volume2, VolumeX, AlertCircle } from 'lucide-react';
 
 interface IoTSensorPanelProps {
   state: IotSensorState;
@@ -105,22 +105,27 @@ export default function IoTSensorPanel({ state, liveMode, onToggleMode, liveErro
 
       {/* Sensor Readouts Grid */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {/* IR Motion */}
+        {/* Ultrasonic Distance */}
         <div className="rounded-xl border border-slate-800 bg-slate-800/40 p-4">
           <div className="mb-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Footprints className="h-4 w-4 text-slate-400" />
-              <span className="text-xs font-medium text-slate-400">IR Motion</span>
+              <Scan className="h-4 w-4 text-slate-400" />
+              <span className="text-xs font-medium text-slate-400">Ultrasonic Distance</span>
             </div>
             <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-semibold ${
               pirLevel === 'good' ? 'border-emerald-500/30 bg-emerald-500/15 text-emerald-400' : 'border-red-500/30 bg-red-500/15 text-red-400'
             }`}>
               <span className={`h-1.5 w-1.5 rounded-full ${levelDot[pirLevel]}`} />
-              {state.pirDetected ? 'Motion Detected' : 'No Motion'}
+              {state.pirDetected ? 'Object Detected' : 'Clear'}
             </span>
           </div>
-          <p className={`text-sm ${levelColor[pirLevel]}`}>
-            {state.pirDetected ? 'Pedestrian crowd activity detected' : 'Area is quiet'}
+          <p className={`text-2xl font-bold ${levelColor[pirLevel]}`}>
+            {state.distance !== null && state.distance > 0
+              ? `${state.distance.toFixed(1)} cm`
+              : state.pirDetected ? '< 20 cm' : '> 500 cm'}
+          </p>
+          <p className={`mt-1 text-xs ${state.pirDetected ? 'text-red-400/70' : 'text-slate-500'}`}>
+            {state.pirDetected ? 'Obstacle in sensor range!' : 'No object in sensor range'}
           </p>
         </div>
 
